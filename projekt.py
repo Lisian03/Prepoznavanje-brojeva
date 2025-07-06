@@ -18,7 +18,7 @@ y = mnist.target.astype(int)
 # Preprocess data
 X = X / 255.0
 X = X.values.reshape(-1, 28, 28, 1)  # Reshape for CNN
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Classifiers
 classifiers = {
@@ -122,6 +122,52 @@ results["CNN"] = {
     "ROC AUC": roc_auc
 }
 
+# Build and train a VGG-like CNN
+print("Training VGG-like CNN...")
+vgg_model = Sequential()
+vgg_model.add(Input(shape=(28, 28, 1)))
+
+# VGG-like block 1
+vgg_model.add(Conv2D(64, (3, 3), activation='relu', padding='same'))
+vgg_model.add(Conv2D(64, (3, 3), activation='relu', padding='same'))
+vgg_model.add(MaxPooling2D(pool_size=(2, 2)))
+
+# VGG-like block 2
+vgg_model.add(Conv2D(128, (3, 3), activation='relu', padding='same'))
+vgg_model.add(Conv2D(128, (3, 3), activation='relu', padding='same'))
+vgg_model.add(MaxPooling2D(pool_size=(2, 2)))
+
+# Fully connected layers
+vgg_model.add(Flatten())
+vgg_model.add(Dense(256, activation='relu'))
+vgg_model.add(Dense(10, activation='softmax'))
+
+vgg_model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+vgg_model.fit(X_train_small, y_train_small, epochs=2, batch_size=64, verbose=1)
+
+# Evaluate VGG model
+vgg_pred = vgg_model.predict(X_test)
+vgg_pred_prob = vgg_pred  # Softmax output
+vgg_accuracy = accuracy_score(y_test, np.argmax(vgg_pred_prob, axis=1))
+vgg_f1 = f1_score(y_test, np.argmax(vgg_pred_prob, axis=1), average='weighted')
+vgg_cm = confusion_matrix(y_test, np.argmax(vgg_pred_prob, axis=1))
+
+# Calculate ROC for VGG
+fpr, tpr, _ = roc_curve(y_test, vgg_pred_prob[:, 1], pos_label=1)
+roc_auc = auc(fpr, tpr)
+fpr_all["VGG"] = fpr
+tpr_all["VGG"] = tpr
+roc_auc_all["VGG"] = roc_auc
+
+# Store VGG results
+results["VGG"] = {
+    "Accuracy": vgg_accuracy,
+    "F1 Score": vgg_f1,
+    "Confusion Matrix": vgg_cm,
+    "ROC AUC": roc_auc
+}
+
+
 # Display results for all classifiers
 for name, metrics in results.items():
     print(f"{name}:")
@@ -134,8 +180,7 @@ for name in fpr_all:
     plt.figure()
     plt.plot(fpr_all[name], tpr_all[name], label=f'{name} (AUC = {roc_auc_all[name]:.2f})')
     plt.plot([0, 1], [0, 1], 'k--')  # Line for random classifier (diagonal)
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title(f'ROC Curve for {name}')
+    plt.xlabel('Stopa lažno pozitivnih')
+    plt.ylabel('Stopa istinitih pozitivnih')
     plt.legend()
     plt.show()
